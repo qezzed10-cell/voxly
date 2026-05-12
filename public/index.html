@@ -218,105 +218,151 @@
   </div>
 
   <script>
-    const chatbox = document.getElementById('chatbox');
-    const input = document.getElementById('userInput');
-    const sendBtn = document.getElementById('sendBtn');
-    const statusPill = document.getElementById('statusPill');
-    const statusText = document.getElementById('statusText');
-    let msgCount = 0;
-    let chatHistory = [];
-    let isOnline = false;
+   const chatbox = document.getElementById('chatbox');
+const input = document.getElementById('userInput');
+const sendBtn = document.getElementById('sendBtn');
+const statusPill = document.getElementById('statusPill');
+const statusText = document.getElementById('statusText');
+let msgCount = 0;
+let chatHistory = [];
+let isOnline = false;
+let isListening = false;
+const synth = window.speechSynthesis;
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+const recognition = SpeechRecognition ? new SpeechRecognition() : null;
 
-    // Health check on load
-    fetch('/health').then(r => r.json()).then(() => {
-      // Will turn green after first successful Gemini response
-    }).catch(() => setOffline());
+// Add mic button to input area
+const inputRow = document.querySelector('.input-row');
+const micBtn = document.createElement('button');
+micBtn.id = 'micBtn';
+micBtn.textContent = '🎤';
+micBtn.style.cssText = 'background:#f0f0ff;color:#4f46e5;padding:11px 14px;font-size:16px;margin-right:4px;';
+micBtn.title = 'Click to speak';
+inputRow.insertBefore(micBtn, document.getElementById('sendBtn'));
 
-    function setOnline() {
-      if (isOnline) return;
-      isOnline = true;
-      statusPill.classList.add('online');
-      statusText.textContent = 'Online';
-    }
+if (recognition) {
+  recognition.continuous = false;
+  recognition.interimResults = false;
+  recognition.onresult = (e) => {
+    input.value = e.results[0][0].transcript;
+    micBtn.textContent = '🎤';
+    isListening = false;
+    sendMessage();
+  };
+  recognition.onend = () => {
+    micBtn.textContent = '🎤';
+    isListening = false;
+  };
+}
 
-    function setOffline() {
-      isOnline = false;
-      statusPill.classList.remove('online');
-      statusText.textContent = 'Offline';
-    }
+micBtn.addEventListener('click', () => {
+  if (!recognition) return alert('Voice not supported in this browser. Use Chrome!');
+  if (isListening) {
+    recognition.stop();
+    micBtn.textContent = '🎤';
+    isListening = false;
+  } else {
+    recognition.start();
+    micBtn.textContent = '🔴';
+    isListening = true;
+  }
+});
 
-    input.addEventListener('keydown', e => {
-      if (e.key === 'Enter') { e.preventDefault(); sendMessage(); }
+function speakText(text) {
+  if (!synth) return;
+  synth.cancel();
+  const utt = new SpeechSynthesisUtterance(text);
+  utt.rate = 1;
+  utt.pitch = 1;
+  synth.speak(utt);
+}
+
+fetch('/health').then(r => r.json()).catch(() => setOffline());
+
+function setOnline() {
+  if (isOnline) return;
+  isOnline = true;
+  statusPill.classList.add('online');
+  statusText.textContent = 'Online';
+}
+
+function setOffline() {
+  isOnline = false;
+  statusPill.classList.remove('online');
+  statusText.textContent = 'Offline';
+}
+
+input.addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); sendMessage(); }
+});
+
+function addMessage(text, role) {
+  document.getElementById('emptyState')?.remove();
+  const msg = document.createElement('div');
+  msg.className = `msg ${role}`;
+  const avatar = document.createElement('div');
+  avatar.className = 'avatar';
+  avatar.textContent = role === 'user' ? '✦' : '🗣️';
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  bubble.textContent = text;
+  msg.appendChild(avatar);
+  msg.appendChild(bubble);
+  chatbox.appendChild(msg);
+  chatbox.scrollTop = chatbox.scrollHeight;
+}
+
+function addTyping() {
+  const msg = document.createElement('div');
+  msg.className = 'msg bot typing'; msg.id = 'typing';
+  const avatar = document.createElement('div');
+  avatar.className = 'avatar'; avatar.textContent = '🗣️';
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  bubble.innerHTML = '<span></span><span></span><span></span>';
+  msg.appendChild(avatar); msg.appendChild(bubble);
+  chatbox.appendChild(msg);
+  chatbox.scrollTop = chatbox.scrollHeight;
+}
+
+async function sendMessage() {
+  const message = input.value.trim();
+  const language = document.getElementById('language').value;
+  if (!message) return;
+  input.value = '';
+  sendBtn.disabled = true;
+  addMessage(message, 'user');
+  addTyping();
+  document.getElementById('msgCount').textContent = ++msgCount;
+
+  try {
+    const res = await fetch('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, language, history: chatHistory })
     });
-
-    function addMessage(text, role) {
-      document.getElementById('emptyState')?.remove();
-      const msg = document.createElement('div');
-      msg.className = `msg ${role}`;
-      const avatar = document.createElement('div');
-      avatar.className = 'avatar';
-      avatar.textContent = role === 'user' ? '✦' : '🗣️';
-      const bubble = document.createElement('div');
-      bubble.className = 'bubble';
-      bubble.textContent = text;
-      msg.appendChild(avatar);
-      msg.appendChild(bubble);
-      chatbox.appendChild(msg);
-      chatbox.scrollTop = chatbox.scrollHeight;
+    const data = await res.json();
+    document.getElementById('typing')?.remove();
+    if (data.reply) {
+      addMessage(data.reply, 'bot');
+      chatHistory.push({ role: 'user', text: message });
+      chatHistory.push({ role: 'model', text: data.reply });
+      if (chatHistory.length > 20) chatHistory = chatHistory.slice(-20);
+      setOnline();
+      speakText(data.reply);
+    } else {
+      addMessage(data.error || 'Something went wrong.', 'bot');
+      setOffline();
     }
+  } catch {
+    document.getElementById('typing')?.remove();
+    addMessage('Something went wrong. Try again!', 'bot');
+    setOffline();
+  }
 
-    function addTyping() {
-      const msg = document.createElement('div');
-      msg.className = 'msg bot typing'; msg.id = 'typing';
-      const avatar = document.createElement('div');
-      avatar.className = 'avatar'; avatar.textContent = '🗣️';
-      const bubble = document.createElement('div');
-      bubble.className = 'bubble';
-      bubble.innerHTML = '<span></span><span></span><span></span>';
-      msg.appendChild(avatar); msg.appendChild(bubble);
-      chatbox.appendChild(msg);
-      chatbox.scrollTop = chatbox.scrollHeight;
-    }
-
-    async function sendMessage() {
-      const message = input.value.trim();
-      const language = document.getElementById('language').value;
-      if (!message) return;
-      input.value = '';
-      sendBtn.disabled = true;
-      addMessage(message, 'user');
-      addTyping();
-      document.getElementById('msgCount').textContent = ++msgCount;
-
-      try {
-        const res = await fetch('/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message, language, history: chatHistory })
-        });
-        const data = await res.json();
-        document.getElementById('typing')?.remove();
-        if (data.reply) {
-          addMessage(data.reply, 'bot');
-          // Add to history for memory
-          chatHistory.push({ role: 'user', text: message });
-          chatHistory.push({ role: 'model', text: data.reply });
-          // Keep last 10 exchanges only
-          if (chatHistory.length > 20) chatHistory = chatHistory.slice(-20);
-          setOnline();
-        } else {
-          addMessage(data.error || 'Something went wrong.', 'bot');
-          setOffline();
-        }
-      } catch {
-        document.getElementById('typing')?.remove();
-        addMessage('Something went wrong. Try again!', 'bot');
-        setOffline();
-      }
-
-      sendBtn.disabled = false;
-      input.focus();
-    }
+  sendBtn.disabled = false;
+  input.focus();
+}
   </script>
 </body>
 </html>

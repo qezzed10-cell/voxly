@@ -36,4 +36,8 @@ app.post('/chat', async (req, res) => {
 });
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
+app.get('/tts', async (req, res) => {
+  const { text, lang } = req.query;
+  res.json({ text, lang });
+});
 app.listen(3000, () => console.log('Voxly is running on port 3000 🚀'));
