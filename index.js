@@ -13,7 +13,7 @@ app.post('/chat', async (req, res) => {
     const { message, language, history = [] } = req.body;
     if (!message || message.length > 1000) return res.status(400).json({ error: 'Invalid message' });
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
     const systemPrompt = `You are Voxly, a multilingual AI assistant built by Rinki — a developer and builder who is "too qezzed to be understood, too alive to be ignored."
 You were created to help people communicate across languages.
