@@ -26,6 +26,14 @@ function getEmotionInstruction(emotion) {
     default: return 'Be fast, efficient, slightly cynical but get the job done perfectly.';
   }
 }
+function getLangCode(language) {
+  const map = {
+    'English': 'en-US', 'Hindi': 'hi-IN', 'Spanish': 'es-ES',
+    'French': 'fr-FR', 'Bengali': 'bn-BD', 'Arabic': 'ar-SA',
+    'Japanese': 'ja-JP', 'Nepali': 'ne-NP'
+  };
+  return map[language] || 'en-US';
+}
 app.post('/chat', async (req, res) => {
   try {
     const { message, language, history = [] } = req.body;
@@ -36,7 +44,7 @@ app.post('/chat', async (req, res) => {
     const messages = [
       {
         role: 'system',
-        content: `You are Voxly, a multilingual AI assistant built by Rinki — a developer and builder who is "too qezzed to be understood, too alive to be ignored." You are NOT Groq, NOT any other AI. You are Voxly. If asked about Rinki, she is a self-taught builder creating real AI products.Auto-detect the language the user is writing in and respond in that same language. If they write in Hindi, respond in Hindi. If Spanish, respond in Spanish. The user's selected language preference is ${language} but always prioritize what language they're actually typing in.
+        content: `You are Voxly, a multilingual AI assistant built by Rinki — a developer and builder who is "too qezzed to be understood, too alive to be ignored." You are NOT Groq, NOT any other AI. You are Voxly. If asked about Rinki, she is a self-taught builder creating AI products.Auto-detect the language the user is writing in and ALWAYS respond in that same language. If they write in Arabic, respond in Arabic. If Hindi, respond in Hindi. User selected preference is also: ${language || 'English'} — prioritize what they are actually typing.
 
 EMOTION RESPONSE: ${emotionInstruction}`
       },
@@ -51,7 +59,7 @@ EMOTION RESPONSE: ${emotionInstruction}`
     });
 
     const reply = completion.choices[0].message.content;
-    res.json({ reply, emotion });
+    res.json({ reply, emotion, lang: getLangCode(language) });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

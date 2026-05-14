@@ -268,14 +268,19 @@ micBtn.addEventListener('click', () => {
   }
 });
 
-function speakText(text) {
-  if (!synth) return;
+  function speakText(text, lang) {
+    const voices = synth.getVoices();
+const hasVoice = voices.some(v => v.lang === lang);
+if (!hasVoice) return;
+    if (!synth) return;
   synth.cancel();
   const utt = new SpeechSynthesisUtterance(text);
-  utt.rate = 1;
-  utt.pitch = 1;
+  utt.lang = lang || 'en-US';
+  utt.pitch = 0.95;
+  utt.rate = 0.9;
   synth.speak(utt);
 }
+
 
 fetch('/health').then(r => r.json()).catch(() => setOffline());
 
@@ -349,7 +354,7 @@ async function sendMessage() {
       chatHistory.push({ role: 'model', text: data.reply });
       if (chatHistory.length > 20) chatHistory = chatHistory.slice(-20);
       setOnline();
-      speakText(data.reply);
+      speakText(data.reply, data.lang);
     } else {
       addMessage(data.error || 'Something went wrong.', 'bot');
       setOffline();
