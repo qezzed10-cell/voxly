@@ -268,11 +268,19 @@ micBtn.addEventListener('click', () => {
   }
 });
 
+let loadedVoices = [];
+function populateVoices() {
+  loadedVoices = synth.getVoices();
+}
+populateVoices();
+if (synth.onvoiceschanged !== undefined) {
+  synth.onvoiceschanged = populateVoices;
+}
+
   function speakText(text, lang) {
-    const voices = synth.getVoices();
-const hasVoice = voices.some(v => v.lang === lang);
-if (!hasVoice) return;
     if (!synth) return;
+    const hasVoice = loadedVoices.some(v => v.lang === lang);
+    if (!hasVoice) return;
   synth.cancel();
   const utt = new SpeechSynthesisUtterance(text);
   utt.lang = lang || 'en-US';
@@ -282,7 +290,7 @@ if (!hasVoice) return;
 }
 
 
-fetch('/health').then(r => r.json()).catch(() => setOffline());
+fetch('/health').then(r => r.json()).then(() => setOnline()).catch(() => setOffline());
 
 function setOnline() {
   if (isOnline) return;
